@@ -92,7 +92,7 @@ pub const VTableHeader = switch (@import("builtin").abi) {
         __header: ?*const anyopaque = null,
     },
     else => extern struct {
-        __header: [2]?*const anyopaque = [_]?*const anyopaque{null} ** 2,
+        __header: [2]?*const anyopaque = @splat(null),
     },
 };
 
@@ -665,7 +665,7 @@ pub const ContactSettings = extern struct {
 
 pub const MassProperties = extern struct {
     mass: f32 = 0.0,
-    inertia: [16]f32 align(16) = [_]f32{0} ** 16,
+    inertia: [16]f32 align(16) = @splat(0),
 
     comptime {
         assert(@sizeOf(MassProperties) == @sizeOf(c.JPC_MassProperties));
@@ -1635,7 +1635,7 @@ pub const BodyLockWrite = extern struct {
 //
 //--------------------------------------------------------------------------------------------------
 pub const BodyInterface = opaque {
-    pub const AddState = *opaque {};
+    pub const AddState = *allowzero opaque {};
 
     pub fn createBody(body_iface: *BodyInterface, settings: BodyCreationSettings) !*Body {
         const body = c.JPC_BodyInterface_CreateBody(
@@ -1662,6 +1662,14 @@ pub const BodyInterface = opaque {
         c.JPC_BodyInterface_DestroyBody(
             @as(*c.JPC_BodyInterface, @ptrCast(body_iface)),
             body_id.toJpc(),
+        );
+    }
+
+    pub fn destroyBodies(body_iface: *BodyInterface, body_ids: []const BodyId) void {
+        c.JPC_BodyInterface_DestroyBodies(
+            @as(*c.JPC_BodyInterface, @ptrCast(body_iface)),
+            @ptrCast(body_ids.ptr),
+            @intCast(body_ids.len),
         );
     }
 
@@ -1704,6 +1712,14 @@ pub const BodyInterface = opaque {
         c.JPC_BodyInterface_RemoveBody(
             @as(*c.JPC_BodyInterface, @ptrCast(body_iface)),
             body_id.toJpc(),
+        );
+    }
+
+    pub fn removeBodies(body_iface: *BodyInterface, body_ids: []BodyId) void {
+        c.JPC_BodyInterface_RemoveBodies(
+            @as(*c.JPC_BodyInterface, @ptrCast(body_iface)),
+            @ptrCast(body_ids.ptr),
+            @intCast(body_ids.len),
         );
     }
 
@@ -1764,6 +1780,22 @@ pub const BodyInterface = opaque {
         return c.JPC_BodyInterface_IsActive(
             @as(*const c.JPC_BodyInterface, @ptrCast(body_iface)),
             body_id.toJpc(),
+        );
+    }
+
+    pub fn setShape(
+        body_iface: *const BodyInterface,
+        body_id: BodyId,
+        shape: *const Shape,
+        update_mass_properties: bool,
+        activation_mode: Activation,
+    ) void {
+        c.JPC_BodyInterface_SetShape(
+            @as(*const c.JPC_BodyInterface, @ptrCast(body_iface)),
+            body_id.toJpc(),
+            @ptrCast(shape),
+            update_mass_properties,
+            @intFromEnum(activation_mode),
         );
     }
 
@@ -2009,6 +2041,13 @@ pub const BodyInterface = opaque {
             @as(*c.JPC_BodyInterface, @ptrCast(body_iface)),
             body_id.toJpc(),
             in_layer,
+        );
+    }
+
+    pub fn getUserData(body_iface: *BodyInterface, body_id: BodyId) u64 {
+        return c.JPC_BodyInterface_GetUserData(
+            @as(*c.JPC_BodyInterface, @ptrCast(body_iface)),
+            body_id.toJpc(),
         );
     }
 };
