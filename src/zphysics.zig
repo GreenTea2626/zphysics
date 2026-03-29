@@ -2002,6 +2002,13 @@ pub const BodyInterface = opaque {
             in_layer,
         );
     }
+
+    pub fn getUserData(body_iface: *BodyInterface, body_id: BodyId) u64 {
+        return c.JPC_BodyInterface_GetUserData(
+            @as(*c.JPC_BodyInterface, @ptrCast(body_iface)),
+            body_id.toJpc(),
+        );
+    }
 };
 //--------------------------------------------------------------------------------------------------
 //

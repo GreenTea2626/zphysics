@@ -2508,6 +2508,15 @@ JPC_BodyInterface_SetPosition(JPC_BodyInterface *in_iface,
 {
     toJph(in_iface)->SetPosition(toJph(in_body_id), loadRVec3(in_position), static_cast<JPH::EActivation>(in_activation));
 }
+
+JPC_API uint64_t
+JPC_BodyInterface_GetUserData(JPC_BodyInterface *in_iface,
+                              JPC_BodyID in_body_id)
+{
+    return toJph(in_iface)->GetUserData(toJph(in_body_id));
+}
+
+
 //--------------------------------------------------------------------------------------------------
 JPC_API void
 JPC_BodyInterface_GetCenterOfMassPosition(const JPC_BodyInterface *in_iface,

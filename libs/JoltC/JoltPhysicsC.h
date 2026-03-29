@@ -2105,6 +2105,11 @@ JPC_BodyInterface_SetPosition(JPC_BodyInterface *in_iface,
                               JPC_BodyID in_body_id,
                               const JPC_Real in_position[3],
                               JPC_Activation in_activation);
+
+JPC_API uint64_t
+JPC_BodyInterface_GetUserData(JPC_BodyInterface *in_iface,
+                              JPC_BodyID in_body_id);
+
 JPC_API void
 JPC_BodyInterface_GetCenterOfMassPosition(const JPC_BodyInterface *in_iface,
                                           JPC_BodyID in_body_id,
