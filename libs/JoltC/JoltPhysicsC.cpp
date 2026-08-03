@@ -224,6 +224,15 @@ FN(toJph)(JPC_CompoundShapeSettings *in) {
     return reinterpret_cast<JPH::CompoundShapeSettings *>(in);
 }
 
+// Custom
+
+FN(toJpc)(JPH::Shape::GetTrianglesContext *in) {
+    assert(in); return reinterpret_cast<JPC_GetTrianglesContext *>(in);
+}
+FN(toJph)(JPC_GetTrianglesContext *in) {
+    assert(in); return reinterpret_cast<JPH::Shape::GetTrianglesContext *>(in);
+}
+
 FN(toJph)(JPC_BoxShape *in) { assert(in); return reinterpret_cast<JPH::BoxShape *>(in); }
 FN(toJph)(const JPC_BoxShape *in) { assert(in); return reinterpret_cast<const JPH::BoxShape *>(in); }
 FN(toJpc)(JPH::BoxShape *in) { assert(in); return reinterpret_cast<JPC_BoxShape *>(in); }
@@ -1885,6 +1894,62 @@ JPC_BodyDrawFilter_Destroy(JPC_BodyDrawFilter *filter)
 // JPC_Shape
 //
 //--------------------------------------------------------------------------------------------------
+
+//--------------------------------------------------------------------------------------------------
+//
+// JPC_GetTrianglesContext (Custom)
+//
+//--------------------------------------------------------------------------------------------------
+JPC_API JPC_GetTrianglesContext *
+JPC_GetTrianglesContext_Create(void)
+{
+    auto ctx = static_cast<JPH::Shape::GetTrianglesContext *>(
+        JPH::Allocate(sizeof(JPH::Shape::GetTrianglesContext)));
+    ::new (ctx) JPH::Shape::GetTrianglesContext();
+    return toJpc(ctx);
+}
+//--------------------------------------------------------------------------------------------------
+JPC_API void
+JPC_GetTrianglesContext_Destroy(JPC_GetTrianglesContext *in_context)
+{
+    assert(in_context != nullptr);
+    JPH::Free(toJph(in_context));
+}
+//--------------------------------------------------------------------------------------------------
+//
+// JPC_Shape triangle iteration (Custom)
+//
+//--------------------------------------------------------------------------------------------------
+JPC_API void
+JPC_Shape_GetTrianglesStart(const JPC_Shape *in_shape,
+                            JPC_GetTrianglesContext *io_context,
+                            const JPC_AABox *in_box,
+                            const float in_position_com[3],
+                            const float in_rotation[4],
+                            const float in_scale[3])
+{
+    assert(in_shape && io_context && in_box && in_position_com && in_rotation && in_scale);
+    toJph(in_shape)->GetTrianglesStart(
+        *toJph(io_context),
+        *toJph(in_box),
+        loadVec3(in_position_com),
+        JPH::Quat(loadVec4(in_rotation)),
+        loadVec3(in_scale));
+}
+//--------------------------------------------------------------------------------------------------
+JPC_API int
+JPC_Shape_GetTrianglesNext(const JPC_Shape *in_shape,
+                           JPC_GetTrianglesContext *io_context,
+                           int in_max_triangles_requested,
+                           float out_triangle_vertices[])
+{
+    assert(in_shape && io_context && out_triangle_vertices);
+    return toJph(in_shape)->GetTrianglesNext(
+        *toJph(io_context),
+        in_max_triangles_requested,
+        reinterpret_cast<JPH::Float3 *>(out_triangle_vertices));
+}
+
 JPC_API void
 JPC_Shape_AddRef(JPC_Shape *in_shape)
 {
@@ -1971,6 +2036,8 @@ JPC_Shape_GetSupportingFace(const JPC_Shape *in_shape,
                                        face);
     return *reinterpret_cast<JPC_Shape_SupportingFace*>(&face);
 }
+
+
 //--------------------------------------------------------------------------------------------------
 JPC_API bool
 JPC_Shape_CastRay(const JPC_Shape *in_shape,

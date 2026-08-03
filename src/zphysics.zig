@@ -3354,6 +3354,25 @@ pub const CompoundShapeSettings = opaque {
         );
     }
 };
+
+//--------------------------------------------------------------------------------------------------
+//
+// GetTrianglesContext (Custom)
+//
+//--------------------------------------------------------------------------------------------------
+/// Scratch state for one triangle-iteration session (Shape.getTrianglesStart/getTrianglesNext).
+/// Not thread-safe to share across concurrent iterations -- create one per iterator/thread.
+pub const GetTrianglesContext = opaque {
+    pub fn create() !*GetTrianglesContext {
+        return @ptrCast(c.JPC_GetTrianglesContext_Create() orelse
+            return error.FailedToCreateGetTrianglesContext);
+    }
+
+    pub fn destroy(context: *GetTrianglesContext) void {
+        c.JPC_GetTrianglesContext_Destroy(@ptrCast(context));
+    }
+};
+
 //--------------------------------------------------------------------------------------------------
 //
 // Shape
@@ -3487,6 +3506,47 @@ pub const Shape = opaque {
             &normal,
         );
         return normal;
+    }
+
+    // Custom
+    /// NOTE: Cannot be called on CompoundShape -- it asserts internally. Use
+    /// CollectTransformedShapes (not yet exposed) to get to leaf shapes first.
+    pub fn getTrianglesStart(
+        shape: *const Shape,
+        context: *GetTrianglesContext,
+        box: AABox,
+        position_com: [3]f32,
+        rotation: [4]f32,
+        scale: [3]f32,
+    ) void {
+        c.JPC_Shape_GetTrianglesStart(
+            @ptrCast(shape),
+            @ptrCast(context),
+            @ptrCast(&box),
+            &position_com,
+            &rotation,
+            &scale,
+        );
+    }
+
+    /// out_triangle_vertices.len must be a multiple of 9 (3 vertices * 3 floats per triangle);
+    /// the number of triangles requested per call is derived from its length.
+    /// Returns the number of triangles written (0 when iteration is done).
+    /// Jolt may return fewer than requested even with more triangles left to process.
+    pub fn getTrianglesNext(
+        shape: *const Shape,
+        context: *GetTrianglesContext,
+        out_triangle_vertices: []f32,
+    ) u32 {
+        assert(out_triangle_vertices.len % 9 == 0);
+        const max_triangles: c_int = @intCast(out_triangle_vertices.len / 9);
+        const num_triangles = c.JPC_Shape_GetTrianglesNext(
+            @ptrCast(shape),
+            @ptrCast(context),
+            max_triangles,
+            out_triangle_vertices.ptr,
+        );
+        return @intCast(num_triangles);
     }
 
     pub fn getSupportingFace(

@@ -334,6 +334,9 @@ typedef struct JPC_BodyInterface_AddState JPC_BodyInterface_AddState;
 typedef struct JPC_BodyLockInterface JPC_BodyLockInterface;
 typedef struct JPC_NarrowPhaseQuery  JPC_NarrowPhaseQuery;
 
+// Custom
+typedef struct JPC_GetTrianglesContext JPC_GetTrianglesContext;
+
 typedef struct JPC_ShapeSettings               JPC_ShapeSettings;
 typedef struct JPC_ConvexShapeSettings         JPC_ConvexShapeSettings;
 typedef struct JPC_BoxShapeSettings            JPC_BoxShapeSettings;
@@ -1829,6 +1832,43 @@ JPC_Shape_GetSupportingFace(const JPC_Shape *in_shape,
                             const float in_direction[3],
                             const float in_scale[3],
                             const float in_transform[16]);
+
+//--------------------------------------------------------------------------------------------------
+//
+// JPC_GetTrianglesContext
+//
+//--------------------------------------------------------------------------------------------------
+/// Allocate scratch state for one triangle-iteration session. Not thread-safe to share across
+/// concurrent GetTrianglesStart/Next calls -- create one per iterator/thread.
+JPC_API JPC_GetTrianglesContext *
+JPC_GetTrianglesContext_Create(void);
+
+JPC_API void
+JPC_GetTrianglesContext_Destroy(JPC_GetTrianglesContext *in_context);
+
+//--------------------------------------------------------------------------------------------------
+//
+// JPC_Shape triangle iteration (Custom)
+//
+//--------------------------------------------------------------------------------------------------
+/// NOTE: Cannot be called on CompoundShape -- it asserts false internally. Use
+/// JPC_Shape_CollectTransformedShapes (not yet implemented) to get to leaf shapes first.
+JPC_API void
+JPC_Shape_GetTrianglesStart(const JPC_Shape *in_shape,
+                            JPC_GetTrianglesContext *io_context,
+                            const JPC_AABox *in_box,
+                            const float in_position_com[3],
+                            const float in_rotation[4],
+                            const float in_scale[3]);
+
+/// out_triangle_vertices must hold 9 * in_max_triangles_requested floats
+/// (3 vertices per triangle, 3 floats per vertex). Returns the number of triangles written,
+/// or 0 when iteration is done.
+JPC_API int
+JPC_Shape_GetTrianglesNext(const JPC_Shape *in_shape,
+                           JPC_GetTrianglesContext *io_context,
+                           int in_max_triangles_requested,
+                           float out_triangle_vertices[]);
 
 JPC_API bool
 JPC_Shape_CastRay(const JPC_Shape *in_shape,
