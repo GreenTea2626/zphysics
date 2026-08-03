@@ -605,6 +605,25 @@ pub const BodyFilter = extern struct {
     }
 };
 
+// Custom
+pub const TransformedShapeCollector = extern struct {
+    __v: *const VTable,
+
+    pub fn init(comptime T: type) TransformedShapeCollector {
+        return .{ .__v = initInterface(T, VTable) };
+    }
+
+    pub const VTable = extern struct {
+        __header: VTableHeader = .{},
+        addHit: *const fn (self: *TransformedShapeCollector, result: *const TransformedShape) callconv(.c) void,
+    };
+
+    comptime {
+        assert(@sizeOf(VTable) == @sizeOf(c.JPC_TransformedShapeCollectorVTable));
+        assert(@offsetOf(VTable, "addHit") == @offsetOf(c.JPC_TransformedShapeCollectorVTable, "AddHit"));
+    }
+};
+
 pub const ShapeFilter = extern struct {
     __v: *const VTable,
 
@@ -1024,6 +1043,22 @@ pub const RayCastSettings = extern struct {
         );
         assert(@offsetOf(RayCastSettings, "treat_convex_as_solid") ==
             @offsetOf(c.JPC_RayCastSettings, "treat_convex_as_solid"));
+    }
+};
+
+// Custom
+pub const TransformedShape = extern struct {
+    shape_position_com: [4]Real align(rvec_align), // 4th element is ignored
+    shape_rotation: [4]f32 align(16),
+    shape: *const Shape,
+    shape_scale: [3]f32,
+    body_id: BodyId,
+    sub_shape_id_creator: SubShapeIDCreator,
+
+    comptime {
+        assert(@sizeOf(TransformedShape) == @sizeOf(c.JPC_TransformedShape));
+        assert(@offsetOf(TransformedShape, "shape") == @offsetOf(c.JPC_TransformedShape, "shape"));
+        assert(@offsetOf(TransformedShape, "body_id") == @offsetOf(c.JPC_TransformedShape, "body_id"));
     }
 };
 
@@ -3360,8 +3395,7 @@ pub const CompoundShapeSettings = opaque {
 // GetTrianglesContext (Custom)
 //
 //--------------------------------------------------------------------------------------------------
-/// Scratch state for one triangle-iteration session (Shape.getTrianglesStart/getTrianglesNext).
-/// Not thread-safe to share across concurrent iterations -- create one per iterator/thread.
+/// Scratch state for one triangle-iteration session. Not thread-safe -- create one per iterator/thread.
 pub const GetTrianglesContext = opaque {
     pub fn create() !*GetTrianglesContext {
         return @ptrCast(c.JPC_GetTrianglesContext_Create() orelse
@@ -3510,7 +3544,7 @@ pub const Shape = opaque {
 
     // Custom
     /// NOTE: Cannot be called on CompoundShape -- it asserts internally. Use
-    /// CollectTransformedShapes (not yet exposed) to get to leaf shapes first.
+    /// collectTransformedShapes to get to leaf shapes first.
     pub fn getTrianglesStart(
         shape: *const Shape,
         context: *GetTrianglesContext,
@@ -3529,10 +3563,8 @@ pub const Shape = opaque {
         );
     }
 
-    /// out_triangle_vertices.len must be a multiple of 9 (3 vertices * 3 floats per triangle);
-    /// the number of triangles requested per call is derived from its length.
+    /// out_triangle_vertices.len must be a multiple of 9 (3 vertices * 3 floats per triangle).
     /// Returns the number of triangles written (0 when iteration is done).
-    /// Jolt may return fewer than requested even with more triangles left to process.
     pub fn getTrianglesNext(
         shape: *const Shape,
         context: *GetTrianglesContext,
@@ -3547,6 +3579,30 @@ pub const Shape = opaque {
             out_triangle_vertices.ptr,
         );
         return @intCast(num_triangles);
+    }
+
+    pub fn collectTransformedShapes(
+        shape: *const Shape,
+        box: AABox,
+        position_com: [3]f32,
+        rotation: [4]f32,
+        scale: [3]f32,
+        args: struct {
+            sub_shape_id_creator: SubShapeIDCreator = .{},
+            shape_filter: ?*const ShapeFilter = null,
+        },
+        collector: *TransformedShapeCollector,
+    ) void {
+        c.JPC_Shape_CollectTransformedShapes(
+            @ptrCast(shape),
+            @ptrCast(&box),
+            &position_com,
+            &rotation,
+            &scale,
+            @ptrCast(&args.sub_shape_id_creator),
+            @ptrCast(collector),
+            args.shape_filter,
+        );
     }
 
     pub fn getSupportingFace(

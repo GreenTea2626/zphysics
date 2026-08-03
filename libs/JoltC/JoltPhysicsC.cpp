@@ -12,6 +12,7 @@
 #include <Jolt/Physics/PhysicsSettings.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/Physics/EPhysicsUpdateError.h>
+#include <Jolt/Physics/Collision/TransformedShape.h>
 #include <Jolt/Physics/Collision/NarrowPhaseQuery.h>
 #include <Jolt/Physics/Collision/CollideShape.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
@@ -666,6 +667,26 @@ JPC_JobSystem_Destroy(JPC_JobSystem *in_job_system)
     assert(in_job_system != nullptr);
     delete reinterpret_cast<JPH::JobSystemThreadPool *>(in_job_system);
 }
+
+// Custom
+class TransformedShapeCollectorImpl : public JPH::TransformedShapeCollector
+{
+public:
+    void AddHit(const JPH::TransformedShape &inResult) override
+    {
+        c_collector->vtbl->AddHit(
+            c_collector,
+            reinterpret_cast<const JPC_TransformedShape *>(&inResult));
+    }
+
+    struct CCollector
+    {
+        JPC_TransformedShapeCollectorVTable *vtbl;
+    };
+    CCollector *c_collector;
+};
+
+
 //--------------------------------------------------------------------------------------------------
 //
 // JPC_PhysicsSystem
@@ -1917,7 +1938,7 @@ JPC_GetTrianglesContext_Destroy(JPC_GetTrianglesContext *in_context)
 }
 //--------------------------------------------------------------------------------------------------
 //
-// JPC_Shape triangle iteration (Custom)
+// JPC_Shape triangle iteration
 //
 //--------------------------------------------------------------------------------------------------
 JPC_API void
@@ -1948,6 +1969,38 @@ JPC_Shape_GetTrianglesNext(const JPC_Shape *in_shape,
         *toJph(io_context),
         in_max_triangles_requested,
         reinterpret_cast<JPH::Float3 *>(out_triangle_vertices));
+}
+//--------------------------------------------------------------------------------------------------
+//
+// JPC_Shape leaf collection
+//
+//--------------------------------------------------------------------------------------------------
+JPC_API void
+JPC_Shape_CollectTransformedShapes(const JPC_Shape *in_shape,
+                                   const JPC_AABox *in_box,
+                                   const float in_position_com[3],
+                                   const float in_rotation[4],
+                                   const float in_scale[3],
+                                   const JPC_SubShapeIDCreator *in_sub_shape_id_creator,
+                                   void *in_collector,
+                                   const void *in_shape_filter)
+{
+    assert(in_shape && in_box && in_position_com && in_rotation && in_scale &&
+           in_sub_shape_id_creator && in_collector);
+
+    TransformedShapeCollectorImpl collector_impl;
+    collector_impl.c_collector = reinterpret_cast<TransformedShapeCollectorImpl::CCollector *>(in_collector);
+
+    const JPH::ShapeFilter shape_filter{};
+
+    toJph(in_shape)->CollectTransformedShapes(
+        *toJph(in_box),
+        loadVec3(in_position_com),
+        JPH::Quat(loadVec4(in_rotation)),
+        loadVec3(in_scale),
+        *toJph(in_sub_shape_id_creator),
+        collector_impl,
+        in_shape_filter ? *static_cast<const JPH::ShapeFilter *>(in_shape_filter) : shape_filter);
 }
 
 JPC_API void

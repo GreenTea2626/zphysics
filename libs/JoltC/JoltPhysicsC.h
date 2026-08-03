@@ -885,6 +885,17 @@ typedef struct JPC_BodyFilterVTable
     (*ShouldCollideLocked)(const void *in_self, const JPC_Body *in_body);
 } JPC_BodyFilterVTable;
 
+// Custom
+
+typedef struct JPC_TransformedShapeCollectorVTable
+{
+    _JPC_VTABLE_HEADER;
+
+    // Required, *cannot* be NULL. Called once per leaf shape found.
+    void
+    (*AddHit)(void *in_self, const JPC_TransformedShape *in_result);
+} JPC_TransformedShapeCollectorVTable;
+
 typedef struct JPC_ShapeFilterVTable
 {
     _JPC_VTABLE_HEADER;
@@ -1835,7 +1846,7 @@ JPC_Shape_GetSupportingFace(const JPC_Shape *in_shape,
 
 //--------------------------------------------------------------------------------------------------
 //
-// JPC_GetTrianglesContext
+// JPC_GetTrianglesContext (Custom)
 //
 //--------------------------------------------------------------------------------------------------
 /// Allocate scratch state for one triangle-iteration session. Not thread-safe to share across
@@ -1848,11 +1859,11 @@ JPC_GetTrianglesContext_Destroy(JPC_GetTrianglesContext *in_context);
 
 //--------------------------------------------------------------------------------------------------
 //
-// JPC_Shape triangle iteration (Custom)
+// JPC_Shape triangle iteration
 //
 //--------------------------------------------------------------------------------------------------
 /// NOTE: Cannot be called on CompoundShape -- it asserts false internally. Use
-/// JPC_Shape_CollectTransformedShapes (not yet implemented) to get to leaf shapes first.
+/// JPC_Shape_CollectTransformedShapes to get to leaf shapes first.
 JPC_API void
 JPC_Shape_GetTrianglesStart(const JPC_Shape *in_shape,
                             JPC_GetTrianglesContext *io_context,
@@ -1869,6 +1880,25 @@ JPC_Shape_GetTrianglesNext(const JPC_Shape *in_shape,
                            JPC_GetTrianglesContext *io_context,
                            int in_max_triangles_requested,
                            float out_triangle_vertices[]);
+
+//--------------------------------------------------------------------------------------------------
+//
+// JPC_Shape leaf collection
+//
+//--------------------------------------------------------------------------------------------------
+/// Walks this shape's leaves (recursing through compound shapes) and calls in_collector's
+/// AddHit once per leaf, with a TransformedShape describing that leaf's own shape + world transform.
+/// in_collector must point to a struct whose first member is a JPC_TransformedShapeCollectorVTable*.
+/// in_shape_filter can be NULL (no filter).
+JPC_API void
+JPC_Shape_CollectTransformedShapes(const JPC_Shape *in_shape,
+                                   const JPC_AABox *in_box,
+                                   const float in_position_com[3],
+                                   const float in_rotation[4],
+                                   const float in_scale[3],
+                                   const JPC_SubShapeIDCreator *in_sub_shape_id_creator,
+                                   void *in_collector,
+                                   const void *in_shape_filter);
 
 JPC_API bool
 JPC_Shape_CastRay(const JPC_Shape *in_shape,
