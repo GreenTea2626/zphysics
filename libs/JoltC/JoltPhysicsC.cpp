@@ -2718,6 +2718,17 @@ JPC_BodyInterface_SetShape(const JPC_BodyInterface *in_iface,
         in_update_mass_properties,
         static_cast<JPH::EActivation>(in_activation_mode));
 }
+
+JPC_API const JPC_Shape*
+JPC_BodyInterface_GetShape(const JPC_BodyInterface *in_iface,
+                           JPC_BodyID in_body_id)
+{
+    return toJpc(
+        toJph(in_iface)->GetShape(toJph(in_body_id))
+    );
+}
+
+
 //--------------------------------------------------------------------------------------------------
 JPC_API void
 JPC_BodyInterface_SetPositionRotationAndVelocity(JPC_BodyInterface *in_iface,

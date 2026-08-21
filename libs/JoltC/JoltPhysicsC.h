@@ -2221,6 +2221,9 @@ JPC_BodyInterface_SetShape(const JPC_BodyInterface *in_iface,
                            bool in_update_mass_properties,
                            JPC_Activation in_activation_mode);
 
+JPC_API const JPC_Shape*
+JPC_BodyInterface_GetShape(const JPC_BodyInterface *in_iface, JPC_BodyID in_body_id);
+
 JPC_API void
 JPC_BodyInterface_SetPositionRotationAndVelocity(JPC_BodyInterface *in_iface,
                                                  JPC_BodyID in_body_id,

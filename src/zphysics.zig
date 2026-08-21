@@ -1834,6 +1834,21 @@ pub const BodyInterface = opaque {
         );
     }
 
+    pub fn getShape(
+        body_iface: *const BodyInterface,
+        body_id: BodyId,
+    ) ?*const Shape {
+        const shape = c.JPC_BodyInterface_GetShape(
+            @as(*const c.JPC_BodyInterface, @ptrCast(body_iface)),
+            body_id.toJpc(),
+        );
+
+        if (shape == null)
+            return null;
+
+        return @ptrCast(shape);
+    }
+
     pub fn setLinearAndAngularVelocity(
         body_iface: *BodyInterface,
         body_id: BodyId,
