@@ -31,6 +31,7 @@
 #include <Jolt/Physics/Character/Character.h>
 #include <Jolt/Physics/Character/CharacterBase.h>
 #include <Jolt/Physics/Character/CharacterVirtual.h>
+#include <Jolt/Physics/Constraints/SwingTwistConstraint.h>
 
 JPH_SUPPRESS_WARNINGS
 //--------------------------------------------------------------------------------------------------
@@ -165,6 +166,9 @@ ENSURE_SIZE_ALIGN(JPH::RMat44, JPC_RMatrix)
 ENSURE_SIZE_ALIGN(JPH::PhysicsStepListenerContext, JPC_PhysicsStepListenerContext)
 //--------------------------------------------------------------------------------------------------
 #define ENSURE_ENUM_EQ(c_const, cpp_enum) static_assert(c_const == static_cast<int>(cpp_enum))
+
+ENSURE_ENUM_EQ(JPC_SWING_TYPE_CONE,    JPH::ESwingType::Cone);
+ENSURE_ENUM_EQ(JPC_SWING_TYPE_PYRAMID, JPH::ESwingType::Pyramid);
 
 ENSURE_ENUM_EQ(JPC_SHAPE_TYPE_CONVEX,       JPH::EShapeType::Convex);
 ENSURE_ENUM_EQ(JPC_SHAPE_TYPE_COMPOUND,     JPH::EShapeType::Compound);

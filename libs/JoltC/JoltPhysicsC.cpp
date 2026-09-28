@@ -32,6 +32,9 @@
 #include <Jolt/Physics/Collision/PhysicsMaterial.h>
 #include <Jolt/Physics/Collision/RayCast.h>
 #include <Jolt/Physics/Constraints/FixedConstraint.h>
+#include <Jolt/Physics/Constraints/SwingTwistConstraint.h>
+#include <Jolt/Physics/Ragdoll/Ragdoll.h>
+#include <Jolt/Skeleton/Skeleton.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Body/BodyActivationListener.h>
 #include <Jolt/Physics/Body/BodyLock.h>
@@ -306,6 +309,20 @@ FN(toJph)(JPC_FixedConstraintSettings *in) {
 }
 FN(toJpc)(JPH::FixedConstraintSettings *in) { assert(in); return reinterpret_cast<JPC_FixedConstraintSettings *>(in); }
 
+FN(toJpc)(JPH::SwingTwistConstraintSettings *in) { assert(in); return reinterpret_cast<JPC_SwingTwistConstraintSettings *>(in); }
+
+FN(toJph)(JPC_Skeleton *in) { assert(in); return reinterpret_cast<JPH::Skeleton *>(in); }
+FN(toJph)(const JPC_Skeleton *in) { assert(in); return reinterpret_cast<const JPH::Skeleton *>(in); }
+FN(toJpc)(JPH::Skeleton *in) { assert(in); return reinterpret_cast<JPC_Skeleton *>(in); }
+
+FN(toJph)(JPC_RagdollSettings *in) { assert(in); return reinterpret_cast<JPH::RagdollSettings *>(in); }
+FN(toJph)(const JPC_RagdollSettings *in) { assert(in); return reinterpret_cast<const JPH::RagdollSettings *>(in); }
+FN(toJpc)(JPH::RagdollSettings *in) { assert(in); return reinterpret_cast<JPC_RagdollSettings *>(in); }
+
+FN(toJph)(JPC_Ragdoll *in) { assert(in); return reinterpret_cast<JPH::Ragdoll *>(in); }
+FN(toJph)(const JPC_Ragdoll *in) { assert(in); return reinterpret_cast<const JPH::Ragdoll *>(in); }
+FN(toJpc)(JPH::Ragdoll *in) { assert(in); return reinterpret_cast<JPC_Ragdoll *>(in); }
+
 FN(toJph)(const JPC_CollisionGroup *in) { assert(in); return reinterpret_cast<const JPH::CollisionGroup *>(in); }
 FN(toJpc)(const JPH::CollisionGroup *in) { assert(in); return reinterpret_cast<const JPC_CollisionGroup *>(in); }
 FN(toJpc)(JPH::CollisionGroup *in) { assert(in); return reinterpret_cast<JPC_CollisionGroup *>(in); }
@@ -521,6 +538,14 @@ static inline void storeVec4(float out[4], JPH::Vec4Arg in) {
 static inline void storeMat44(float out[16], JPH::Mat44Arg in) {
     assert(out != nullptr);
     in.StoreFloat4x4(reinterpret_cast<JPH::Float4 *>(out));
+}
+
+static inline JPH::Array<JPH::Mat44> loadMat44Array(const float *in, uint32_t count) {
+    JPH::Array<JPH::Mat44> out;
+    out.reserve(count);
+    for (uint32_t i = 0; i < count; ++i)
+        out.push_back(loadMat44(in + 16 * i));
+    return out;
 }
 
 static JPH::TraceFunction default_trace = nullptr;
@@ -2413,6 +2438,204 @@ JPC_FixedConstraintSettings_SetAutoDetectPoint(JPC_FixedConstraintSettings *in_s
 // JPC_Constraint
 //
 //--------------------------------------------------------------------------------------------------
+
+//--------------------------------------------------------------------------------------------------
+JPC_API JPC_SwingTwistConstraintSettings *
+JPC_SwingTwistConstraintSettings_Create(const JPC_SwingTwistConstraintSettingsArgs *in_args)
+{
+    assert(in_args != nullptr);
+    auto settings = new JPH::SwingTwistConstraintSettings();
+    settings->mSpace                = toJph(in_args->space);
+    settings->mPosition1            = loadRVec3(in_args->position1);
+    settings->mPosition2            = loadRVec3(in_args->position2);
+    settings->mTwistAxis1           = loadVec3(in_args->twist_axis1);
+    settings->mPlaneAxis1           = loadVec3(in_args->plane_axis1);
+    settings->mTwistAxis2           = loadVec3(in_args->twist_axis2);
+    settings->mPlaneAxis2           = loadVec3(in_args->plane_axis2);
+    settings->mSwingType            = static_cast<JPH::ESwingType>(in_args->swing_type);
+    settings->mNormalHalfConeAngle  = in_args->normal_half_cone_angle;
+    settings->mPlaneHalfConeAngle   = in_args->plane_half_cone_angle;
+    settings->mTwistMinAngle        = in_args->twist_min_angle;
+    settings->mTwistMaxAngle        = in_args->twist_max_angle;
+    settings->mMaxFrictionTorque    = in_args->max_friction_torque;
+    settings->AddRef();
+    return toJpc(settings);
+}
+//--------------------------------------------------------------------------------------------------
+//
+// JPC_Skeleton
+//
+//--------------------------------------------------------------------------------------------------
+JPC_API JPC_Skeleton *
+JPC_Skeleton_Create(void)
+{
+    auto skeleton = new JPH::Skeleton();
+    skeleton->AddRef();
+    return toJpc(skeleton);
+}
+JPC_API void JPC_Skeleton_AddRef(JPC_Skeleton *in_skeleton) { toJph(in_skeleton)->AddRef(); }
+JPC_API void JPC_Skeleton_Release(JPC_Skeleton *in_skeleton) { toJph(in_skeleton)->Release(); }
+
+JPC_API uint32_t
+JPC_Skeleton_AddJoint(JPC_Skeleton *in_skeleton, const char *in_name, int in_parent_index)
+{
+    assert(in_name != nullptr);
+    return toJph(in_skeleton)->AddJoint(JPH::String(in_name), in_parent_index);
+}
+JPC_API uint32_t
+JPC_Skeleton_GetJointCount(const JPC_Skeleton *in_skeleton)
+{
+    return toJph(in_skeleton)->GetJointCount();
+}
+JPC_API void
+JPC_Skeleton_CalculateParentJointIndices(JPC_Skeleton *in_skeleton)
+{
+    toJph(in_skeleton)->CalculateParentJointIndices();
+}
+JPC_API bool
+JPC_Skeleton_AreJointsCorrectlyOrdered(const JPC_Skeleton *in_skeleton)
+{
+    return toJph(in_skeleton)->AreJointsCorrectlyOrdered();
+}
+//--------------------------------------------------------------------------------------------------
+//
+// JPC_RagdollSettings
+//
+//--------------------------------------------------------------------------------------------------
+JPC_API JPC_RagdollSettings *
+JPC_RagdollSettings_Create(void)
+{
+    auto settings = new JPH::RagdollSettings();
+    settings->AddRef();
+    return toJpc(settings);
+}
+JPC_API void JPC_RagdollSettings_AddRef(JPC_RagdollSettings *s) { toJph(s)->AddRef(); }
+JPC_API void JPC_RagdollSettings_Release(JPC_RagdollSettings *s) { toJph(s)->Release(); }
+
+JPC_API void
+JPC_RagdollSettings_SetSkeleton(JPC_RagdollSettings *in_settings, JPC_Skeleton *in_skeleton)
+{
+    toJph(in_settings)->mSkeleton = toJph(in_skeleton);
+}
+
+JPC_API void
+JPC_RagdollSettings_AddPart(JPC_RagdollSettings *in_settings,
+                            const JPC_BodyCreationSettings *in_body_settings,
+                            JPC_TwoBodyConstraintSettings *in_to_parent)
+{
+    JPH::RagdollSettings::Part part;
+    static_cast<JPH::BodyCreationSettings &>(part) = *toJph(in_body_settings);
+    part.mToParent = in_to_parent ? toJph(in_to_parent) : nullptr;
+    toJph(in_settings)->mParts.push_back(part);
+}
+
+JPC_API bool
+JPC_RagdollSettings_Stabilize(JPC_RagdollSettings *in_settings)
+{
+    return toJph(in_settings)->Stabilize();
+}
+
+JPC_API void
+JPC_RagdollSettings_DisableParentChildCollisions(JPC_RagdollSettings *in_settings,
+                                                 const float *in_joint_matrices,
+                                                 float in_min_separation_distance)
+{
+    JPH::RagdollSettings *settings = toJph(in_settings);
+    if (in_joint_matrices)
+    {
+        JPH::Array<JPH::Mat44> mats = loadMat44Array(in_joint_matrices, (uint32_t)settings->mParts.size());
+        settings->DisableParentChildCollisions(mats.data(), in_min_separation_distance);
+    }
+    else
+        settings->DisableParentChildCollisions(nullptr, in_min_separation_distance);
+}
+
+JPC_API void
+JPC_RagdollSettings_CalculateBodyIndexToConstraintIndex(JPC_RagdollSettings *in_settings)
+{
+    toJph(in_settings)->CalculateBodyIndexToConstraintIndex();
+}
+JPC_API void
+JPC_RagdollSettings_CalculateConstraintIndexToBodyIdxPair(JPC_RagdollSettings *in_settings)
+{
+    toJph(in_settings)->CalculateConstraintIndexToBodyIdxPair();
+}
+
+JPC_API JPC_Ragdoll *
+JPC_RagdollSettings_CreateRagdoll(const JPC_RagdollSettings *in_settings,
+                                  JPC_CollisionGroupID in_collision_group,
+                                  uint64_t in_user_data,
+                                  JPC_PhysicsSystem *in_physics_system)
+{
+    JPH::Ragdoll *ragdoll = toJph(in_settings)->CreateRagdoll(in_collision_group, in_user_data, toJph(in_physics_system));
+    if (ragdoll == nullptr) return nullptr;
+    ragdoll->AddRef();
+    return toJpc(ragdoll);
+}
+//--------------------------------------------------------------------------------------------------
+//
+// JPC_Ragdoll
+//
+//--------------------------------------------------------------------------------------------------
+JPC_API void JPC_Ragdoll_AddRef(JPC_Ragdoll *r) { toJph(r)->AddRef(); }
+JPC_API void JPC_Ragdoll_Release(JPC_Ragdoll *r) { toJph(r)->Release(); }
+
+JPC_API void
+JPC_Ragdoll_AddToPhysicsSystem(JPC_Ragdoll *in_ragdoll, JPC_Activation in_activation, bool in_lock_bodies)
+{
+    toJph(in_ragdoll)->AddToPhysicsSystem(static_cast<JPH::EActivation>(in_activation), in_lock_bodies);
+}
+JPC_API void
+JPC_Ragdoll_RemoveFromPhysicsSystem(JPC_Ragdoll *in_ragdoll, bool in_lock_bodies)
+{
+    toJph(in_ragdoll)->RemoveFromPhysicsSystem(in_lock_bodies);
+}
+JPC_API uint32_t
+JPC_Ragdoll_GetBodyCount(const JPC_Ragdoll *in_ragdoll)
+{
+    return (uint32_t)toJph(in_ragdoll)->GetBodyCount();
+}
+JPC_API JPC_BodyID
+JPC_Ragdoll_GetBodyID(const JPC_Ragdoll *in_ragdoll, uint32_t in_body_index)
+{
+    return toJpc(toJph(in_ragdoll)->GetBodyID((int)in_body_index));
+}
+JPC_API uint32_t
+JPC_Ragdoll_GetConstraintCount(const JPC_Ragdoll *in_ragdoll)
+{
+    return (uint32_t)toJph(in_ragdoll)->GetConstraintCount();
+}
+JPC_API JPC_Constraint *
+JPC_Ragdoll_GetConstraint(JPC_Ragdoll *in_ragdoll, uint32_t in_constraint_index)
+{
+    return toJpc(static_cast<JPH::Constraint *>(toJph(in_ragdoll)->GetConstraint((int)in_constraint_index)));
+}
+
+JPC_API void
+JPC_Ragdoll_SetPose(JPC_Ragdoll *in_ragdoll,
+                    const JPC_Real in_root_offset[3],
+                    const float *in_joint_matrices,
+                    bool in_lock_bodies)
+{
+    JPH::Ragdoll *ragdoll = toJph(in_ragdoll);
+    JPH::Array<JPH::Mat44> mats = loadMat44Array(in_joint_matrices, (uint32_t)ragdoll->GetBodyCount());
+    ragdoll->SetPose(loadRVec3(in_root_offset), mats.data(), in_lock_bodies);
+}
+JPC_API void
+JPC_Ragdoll_SetLinearAndAngularVelocity(JPC_Ragdoll *in_ragdoll,
+                                        const float in_linear_velocity[3],
+                                        const float in_angular_velocity[3],
+                                        bool in_lock_bodies)
+{
+    toJph(in_ragdoll)->SetLinearAndAngularVelocity(
+        loadVec3(in_linear_velocity), loadVec3(in_angular_velocity), in_lock_bodies);
+}
+JPC_API void
+JPC_Ragdoll_AddImpulse(JPC_Ragdoll *in_ragdoll, const float in_impulse[3], bool in_lock_bodies)
+{
+    toJph(in_ragdoll)->AddImpulse(loadVec3(in_impulse), in_lock_bodies);
+}
+
 JPC_API void
 JPC_Constraint_AddRef(JPC_Constraint *in_shape)
 {

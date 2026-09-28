@@ -3835,6 +3835,50 @@ pub const FixedConstraintSettings = opaque {
         );
     }
 };
+
+pub const SwingType = enum(c.JPC_SwingType) {
+    cone = c.JPC_SWING_TYPE_CONE,
+    pyramid = c.JPC_SWING_TYPE_PYRAMID,
+};
+
+pub const SwingTwistConstraintSettings = opaque {
+    pub const Args = extern struct {
+        space: Constraint.Space = .world_space,
+        position1: [3]Real = .{ 0, 0, 0 },
+        position2: [3]Real = .{ 0, 0, 0 },
+        twist_axis1: [3]f32 = .{ 1, 0, 0 },
+        plane_axis1: [3]f32 = .{ 0, 1, 0 },
+        twist_axis2: [3]f32 = .{ 1, 0, 0 },
+        plane_axis2: [3]f32 = .{ 0, 1, 0 },
+        swing_type: SwingType = .cone,
+        normal_half_cone_angle: f32 = 0, // radians
+        plane_half_cone_angle: f32 = 0, // radians
+        twist_min_angle: f32 = 0, // radians
+        twist_max_angle: f32 = 0, // radians
+        max_friction_torque: f32 = 0,
+
+        comptime {
+            assert(@sizeOf(Args) == @sizeOf(c.JPC_SwingTwistConstraintSettingsArgs));
+            assert(@offsetOf(Args, "swing_type") == @offsetOf(c.JPC_SwingTwistConstraintSettingsArgs, "swing_type"));
+            assert(@offsetOf(Args, "max_friction_torque") ==
+                @offsetOf(c.JPC_SwingTwistConstraintSettingsArgs, "max_friction_torque"));
+        }
+    };
+
+    pub fn asConstraintSettings(self: *SwingTwistConstraintSettings) *ConstraintSettings {
+        return @ptrCast(self);
+    }
+
+    pub fn asTwoBodyConstraintSettings(self: *SwingTwistConstraintSettings) *TwoBodyConstraintSettings {
+        return @ptrCast(self);
+    }
+
+    pub fn create(args: Args) !*SwingTwistConstraintSettings {
+        return @ptrCast(c.JPC_SwingTwistConstraintSettings_Create(@ptrCast(&args)) orelse
+            return error.FailedToCreateSwingTwistConstraintSettings);
+    }
+};
+
 //--------------------------------------------------------------------------------------------------
 //
 // Constraint
@@ -3907,6 +3951,172 @@ pub const Constraint = opaque {
         return c.JPC_Constraint_SetUserData(@ptrCast(constraint), user_data);
     }
 };
+
+//--------------------------------------------------------------------------------------------------
+//
+// Skeleton
+//
+//--------------------------------------------------------------------------------------------------
+pub const Skeleton = opaque {
+    pub fn create() !*Skeleton {
+        return @ptrCast(c.JPC_Skeleton_Create() orelse return error.FailedToCreateSkeleton);
+    }
+    pub fn addRef(skeleton: *Skeleton) void {
+        c.JPC_Skeleton_AddRef(@ptrCast(skeleton));
+    }
+    pub fn release(skeleton: *Skeleton) void {
+        c.JPC_Skeleton_Release(@ptrCast(skeleton));
+    }
+
+    /// `parent_index` is -1 for root joints. Parents must be added before children.
+    pub fn addJoint(skeleton: *Skeleton, name: [*:0]const u8, parent_index: i32) u32 {
+        return c.JPC_Skeleton_AddJoint(@ptrCast(skeleton), name, parent_index);
+    }
+    pub fn getJointCount(skeleton: *const Skeleton) u32 {
+        return c.JPC_Skeleton_GetJointCount(@ptrCast(skeleton));
+    }
+    pub fn calculateParentJointIndices(skeleton: *Skeleton) void {
+        c.JPC_Skeleton_CalculateParentJointIndices(@ptrCast(skeleton));
+    }
+    pub fn areJointsCorrectlyOrdered(skeleton: *const Skeleton) bool {
+        return c.JPC_Skeleton_AreJointsCorrectlyOrdered(@ptrCast(skeleton));
+    }
+};
+//--------------------------------------------------------------------------------------------------
+//
+// RagdollSettings
+//
+//--------------------------------------------------------------------------------------------------
+pub const RagdollSettings = opaque {
+    pub fn create() !*RagdollSettings {
+        return @ptrCast(c.JPC_RagdollSettings_Create() orelse return error.FailedToCreateRagdollSettings);
+    }
+    pub fn addRef(settings: *RagdollSettings) void {
+        c.JPC_RagdollSettings_AddRef(@ptrCast(settings));
+    }
+    pub fn release(settings: *RagdollSettings) void {
+        c.JPC_RagdollSettings_Release(@ptrCast(settings));
+    }
+
+    pub fn setSkeleton(settings: *RagdollSettings, skeleton: *Skeleton) void {
+        c.JPC_RagdollSettings_SetSkeleton(@ptrCast(settings), @ptrCast(skeleton));
+    }
+
+    /// Add parts in skeleton joint order. `to_parent` is null for the root part.
+    pub fn addPart(
+        settings: *RagdollSettings,
+        body_settings: BodyCreationSettings,
+        to_parent: ?*TwoBodyConstraintSettings,
+    ) void {
+        c.JPC_RagdollSettings_AddPart(
+            @ptrCast(settings),
+            @ptrCast(&body_settings),
+            @ptrCast(to_parent),
+        );
+    }
+
+    pub fn stabilize(settings: *RagdollSettings) bool {
+        return c.JPC_RagdollSettings_Stabilize(@ptrCast(settings));
+    }
+
+    pub fn disableParentChildCollisions(
+        settings: *RagdollSettings,
+        args: struct {
+            joint_matrices: ?[]const [16]f32 = null, // model space, one per joint
+            min_separation_distance: f32 = 0.0,
+        },
+    ) void {
+        c.JPC_RagdollSettings_DisableParentChildCollisions(
+            @ptrCast(settings),
+            if (args.joint_matrices) |m| @ptrCast(m.ptr) else null,
+            args.min_separation_distance,
+        );
+    }
+
+    pub fn calculateBodyIndexToConstraintIndex(settings: *RagdollSettings) void {
+        c.JPC_RagdollSettings_CalculateBodyIndexToConstraintIndex(@ptrCast(settings));
+    }
+    pub fn calculateConstraintIndexToBodyIdxPair(settings: *RagdollSettings) void {
+        c.JPC_RagdollSettings_CalculateConstraintIndexToBodyIdxPair(@ptrCast(settings));
+    }
+
+    /// Caller owns one reference to the returned ragdoll (call `Ragdoll.release`).
+    pub fn createRagdoll(
+        settings: *const RagdollSettings,
+        physics_system: *PhysicsSystem,
+        collision_group_id: CollisionGroup.GroupId,
+        user_data: u64,
+    ) !*Ragdoll {
+        return @ptrCast(c.JPC_RagdollSettings_CreateRagdoll(
+            @ptrCast(settings),
+            collision_group_id,
+            user_data,
+            @ptrCast(physics_system),
+        ) orelse return error.FailedToCreateRagdoll);
+    }
+};
+//--------------------------------------------------------------------------------------------------
+//
+// Ragdoll
+//
+//--------------------------------------------------------------------------------------------------
+pub const Ragdoll = opaque {
+    pub fn addRef(ragdoll: *Ragdoll) void {
+        c.JPC_Ragdoll_AddRef(@ptrCast(ragdoll));
+    }
+    /// Remove the ragdoll from the physics system before the last release.
+    pub fn release(ragdoll: *Ragdoll) void {
+        c.JPC_Ragdoll_Release(@ptrCast(ragdoll));
+    }
+
+    pub fn addToPhysicsSystem(
+        ragdoll: *Ragdoll,
+        args: struct { activation: Activation = .activate, lock_bodies: bool = true },
+    ) void {
+        c.JPC_Ragdoll_AddToPhysicsSystem(@ptrCast(ragdoll), @intFromEnum(args.activation), args.lock_bodies);
+    }
+    pub fn removeFromPhysicsSystem(ragdoll: *Ragdoll, args: struct { lock_bodies: bool = true }) void {
+        c.JPC_Ragdoll_RemoveFromPhysicsSystem(@ptrCast(ragdoll), args.lock_bodies);
+    }
+
+    pub fn getBodyCount(ragdoll: *const Ragdoll) u32 {
+        return c.JPC_Ragdoll_GetBodyCount(@ptrCast(ragdoll));
+    }
+    pub fn getBodyId(ragdoll: *const Ragdoll, body_index: u32) BodyId {
+        return @enumFromInt(c.JPC_Ragdoll_GetBodyID(@ptrCast(ragdoll), body_index).id);
+    }
+    pub fn getConstraintCount(ragdoll: *const Ragdoll) u32 {
+        return c.JPC_Ragdoll_GetConstraintCount(@ptrCast(ragdoll));
+    }
+    pub fn getConstraint(ragdoll: *Ragdoll, constraint_index: u32) *Constraint {
+        return @ptrCast(c.JPC_Ragdoll_GetConstraint(@ptrCast(ragdoll), constraint_index));
+    }
+
+    /// `joint_matrices.len` must equal `getBodyCount()`. Matrices are model space, relative to `root_offset`.
+    pub fn setPose(
+        ragdoll: *Ragdoll,
+        root_offset: [3]Real,
+        joint_matrices: []const [16]f32,
+        args: struct { lock_bodies: bool = true },
+    ) void {
+        assert(joint_matrices.len == ragdoll.getBodyCount());
+        c.JPC_Ragdoll_SetPose(@ptrCast(ragdoll), &root_offset, @ptrCast(joint_matrices.ptr), args.lock_bodies);
+    }
+
+    pub fn setLinearAndAngularVelocity(
+        ragdoll: *Ragdoll,
+        linear: [3]f32,
+        angular: [3]f32,
+        args: struct { lock_bodies: bool = true },
+    ) void {
+        c.JPC_Ragdoll_SetLinearAndAngularVelocity(@ptrCast(ragdoll), &linear, &angular, args.lock_bodies);
+    }
+
+    pub fn addImpulse(ragdoll: *Ragdoll, impulse: [3]f32, args: struct { lock_bodies: bool = true }) void {
+        c.JPC_Ragdoll_AddImpulse(@ptrCast(ragdoll), &impulse, args.lock_bodies);
+    }
+};
+
 //--------------------------------------------------------------------------------------------------
 //
 // Memory allocation
@@ -3998,6 +4208,69 @@ fn zphysicsFree(maybe_ptr: ?*anyopaque) callconv(.c) void {
 //
 //--------------------------------------------------------------------------------------------------
 const expect = std.testing.expect;
+
+test "zphysics.ragdoll" {
+    try init(std.testing.allocator, .{});
+    defer deinit();
+
+    const bp = test_cb1.MyBroadphaseLayerInterface.init();
+    const ovbp = test_cb1.MyObjectVsBroadPhaseLayerFilter{};
+    const olp = test_cb1.MyObjectLayerPairFilter{};
+    const physics_system = try PhysicsSystem.create(@ptrCast(&bp), @ptrCast(&ovbp), @ptrCast(&olp), .{});
+    defer physics_system.destroy();
+
+    const shape_settings = try BoxShapeSettings.create(.{ 0.1, 0.2, 0.1 });
+    defer shape_settings.asShapeSettings().release();
+    const shape = try shape_settings.asShapeSettings().createShape();
+    defer shape.release();
+
+    const skeleton = try Skeleton.create();
+    defer skeleton.release();
+    _ = skeleton.addJoint("root", -1);
+    _ = skeleton.addJoint("child", 0);
+    skeleton.calculateParentJointIndices();
+    try expect(skeleton.areJointsCorrectlyOrdered());
+
+    const joint = try SwingTwistConstraintSettings.create(.{
+        .position1 = .{ 0, 1, 0 },
+        .position2 = .{ 0, 1, 0 },
+        .normal_half_cone_angle = 0.5,
+        .plane_half_cone_angle = 0.5,
+        .twist_min_angle = -0.3,
+        .twist_max_angle = 0.3,
+    });
+    defer joint.asConstraintSettings().release();
+
+    const settings = try RagdollSettings.create();
+    defer settings.release();
+    settings.setSkeleton(skeleton);
+
+    const base: BodyCreationSettings = .{
+        .shape = shape,
+        .motion_type = .dynamic,
+        .object_layer = test_cb1.object_layers.moving,
+    };
+    var root = base;
+    root.position = .{ 0, 1, 0, 0 };
+    var child = base;
+    child.position = .{ 0, 2, 0, 0 };
+    settings.addPart(root, null);
+    settings.addPart(child, joint.asTwoBodyConstraintSettings());
+
+    try expect(settings.stabilize());
+    settings.disableParentChildCollisions(.{});
+    settings.calculateBodyIndexToConstraintIndex();
+
+    const ragdoll = try settings.createRagdoll(physics_system, 1, 0);
+    defer ragdoll.release();
+    try expect(ragdoll.getBodyCount() == 2);
+    try expect(ragdoll.getConstraintCount() == 1);
+
+    ragdoll.addToPhysicsSystem(.{});
+    physics_system.optimizeBroadPhase();
+    try physics_system.update(1.0 / 60.0, .{});
+    ragdoll.removeFromPhysicsSystem(.{});
+}
 
 test {
     std.testing.refAllDeclsRecursive(@This());

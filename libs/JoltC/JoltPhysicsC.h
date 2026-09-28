@@ -175,6 +175,13 @@ typedef enum JPC_ConstraintSpace
     _JPC_CONSTRAINT_SPACE_FORCEU32         = 0x7fffffff
 } JPC_ConstraintSpace;
 
+typedef enum JPC_SwingType
+{
+    JPC_SWING_TYPE_CONE       = 0,
+    JPC_SWING_TYPE_PYRAMID    = 1,
+    _JPC_SWING_TYPE_FORCEU32  = 0x7fffffff
+} JPC_SwingType;
+
 typedef uint8_t JPC_MotionType;
 enum
 {
@@ -355,6 +362,11 @@ typedef struct JPC_CharacterContactSettings    JPC_CharacterContactSettings;
 typedef struct JPC_ConstraintSettings        JPC_ConstraintSettings;
 typedef struct JPC_TwoBodyConstraintSettings JPC_TwoBodyConstraintSettings;
 typedef struct JPC_FixedConstraintSettings   JPC_FixedConstraintSettings;
+
+typedef struct JPC_SwingTwistConstraintSettings JPC_SwingTwistConstraintSettings;
+typedef struct JPC_Skeleton                     JPC_Skeleton;
+typedef struct JPC_RagdollSettings              JPC_RagdollSettings;
+typedef struct JPC_Ragdoll                      JPC_Ragdoll;
 
 typedef struct JPC_PhysicsSystem JPC_PhysicsSystem;
 typedef struct JPC_SharedMutex   JPC_SharedMutex;
@@ -702,6 +714,23 @@ typedef struct JPC_CharacterVirtual_ExtendedUpdateSettings
     float             walk_stairs_cos_angle_forward_contact;
     alignas(16) float walk_stairs_step_down_extra[4]; // 4th element is ignored;
 } JPC_CharacterVirtual_ExtendedUpdateSettings;
+
+typedef struct JPC_SwingTwistConstraintSettingsArgs
+{
+    JPC_ConstraintSpace space;
+    JPC_Real            position1[3];
+    JPC_Real            position2[3];
+    float               twist_axis1[3];
+    float               plane_axis1[3];
+    float               twist_axis2[3];
+    float               plane_axis2[3];
+    JPC_SwingType       swing_type;
+    float               normal_half_cone_angle; // radians
+    float               plane_half_cone_angle;  // radians
+    float               twist_min_angle;        // radians
+    float               twist_max_angle;        // radians
+    float               max_friction_torque;
+} JPC_SwingTwistConstraintSettingsArgs;
 
 #if JPC_DEBUG_RENDERER == 1
 // NOTE: Needs to be kept in sync with JPH::AABox
@@ -2061,6 +2090,121 @@ JPC_FixedConstraintSettings_SetAutoDetectPoint(JPC_FixedConstraintSettings *in_s
 // JPC_Constraint
 //
 //--------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
+// JPC_SwingTwistConstraintSettings (-> JPC_TwoBodyConstraintSettings -> JPC_ConstraintSettings)
+//--------------------------------------------------------------------------------------------------
+JPC_API JPC_SwingTwistConstraintSettings *
+JPC_SwingTwistConstraintSettings_Create(const JPC_SwingTwistConstraintSettingsArgs *in_args);
+
+//--------------------------------------------------------------------------------------------------
+// JPC_Skeleton
+//--------------------------------------------------------------------------------------------------
+JPC_API JPC_Skeleton *
+JPC_Skeleton_Create(void);
+
+JPC_API void
+JPC_Skeleton_AddRef(JPC_Skeleton *in_skeleton);
+
+JPC_API void
+JPC_Skeleton_Release(JPC_Skeleton *in_skeleton);
+
+/// in_parent_index = -1 for root joints. Parents must be added before children.
+JPC_API uint32_t
+JPC_Skeleton_AddJoint(JPC_Skeleton *in_skeleton, const char *in_name, int in_parent_index);
+
+JPC_API uint32_t
+JPC_Skeleton_GetJointCount(const JPC_Skeleton *in_skeleton);
+
+JPC_API void
+JPC_Skeleton_CalculateParentJointIndices(JPC_Skeleton *in_skeleton);
+
+JPC_API bool
+JPC_Skeleton_AreJointsCorrectlyOrdered(const JPC_Skeleton *in_skeleton);
+
+//--------------------------------------------------------------------------------------------------
+// JPC_RagdollSettings
+//--------------------------------------------------------------------------------------------------
+JPC_API JPC_RagdollSettings *
+JPC_RagdollSettings_Create(void);
+
+JPC_API void
+JPC_RagdollSettings_AddRef(JPC_RagdollSettings *in_settings);
+
+JPC_API void
+JPC_RagdollSettings_Release(JPC_RagdollSettings *in_settings);
+
+JPC_API void
+JPC_RagdollSettings_SetSkeleton(JPC_RagdollSettings *in_settings, JPC_Skeleton *in_skeleton);
+
+/// Parts must be added in skeleton joint order (one per joint). The body settings are copied.
+/// in_to_parent = NULL for the root part. The constraint settings are ref-counted by the part.
+JPC_API void
+JPC_RagdollSettings_AddPart(JPC_RagdollSettings *in_settings,
+                            const JPC_BodyCreationSettings *in_body_settings,
+                            JPC_TwoBodyConstraintSettings *in_to_parent);
+
+JPC_API bool
+JPC_RagdollSettings_Stabilize(JPC_RagdollSettings *in_settings);
+
+/// in_joint_matrices can be NULL (16 floats per joint, model space, column-major).
+JPC_API void
+JPC_RagdollSettings_DisableParentChildCollisions(JPC_RagdollSettings *in_settings,
+                                                 const float *in_joint_matrices,
+                                                 float in_min_separation_distance);
+JPC_API void
+JPC_RagdollSettings_CalculateBodyIndexToConstraintIndex(JPC_RagdollSettings *in_settings);
+
+JPC_API void
+JPC_RagdollSettings_CalculateConstraintIndexToBodyIdxPair(JPC_RagdollSettings *in_settings);
+
+/// Returned ragdoll already has one reference; call JPC_Ragdoll_Release when done.
+JPC_API JPC_Ragdoll *
+JPC_RagdollSettings_CreateRagdoll(const JPC_RagdollSettings *in_settings,
+                                  JPC_CollisionGroupID in_collision_group,
+                                  uint64_t in_user_data,
+                                  JPC_PhysicsSystem *in_physics_system);
+//--------------------------------------------------------------------------------------------------
+// JPC_Ragdoll
+//--------------------------------------------------------------------------------------------------
+JPC_API void
+JPC_Ragdoll_AddRef(JPC_Ragdoll *in_ragdoll);
+
+JPC_API void
+JPC_Ragdoll_Release(JPC_Ragdoll *in_ragdoll);
+
+JPC_API void
+JPC_Ragdoll_AddToPhysicsSystem(JPC_Ragdoll *in_ragdoll, JPC_Activation in_activation, bool in_lock_bodies);
+
+JPC_API void
+JPC_Ragdoll_RemoveFromPhysicsSystem(JPC_Ragdoll *in_ragdoll, bool in_lock_bodies);
+
+JPC_API uint32_t
+JPC_Ragdoll_GetBodyCount(const JPC_Ragdoll *in_ragdoll);
+
+JPC_API JPC_BodyID
+JPC_Ragdoll_GetBodyID(const JPC_Ragdoll *in_ragdoll, uint32_t in_body_index);
+
+JPC_API uint32_t
+JPC_Ragdoll_GetConstraintCount(const JPC_Ragdoll *in_ragdoll);
+
+JPC_API JPC_Constraint *
+JPC_Ragdoll_GetConstraint(JPC_Ragdoll *in_ragdoll, uint32_t in_constraint_index);
+
+/// in_joint_matrices: 16 floats per body/joint, model space relative to in_root_offset.
+JPC_API void
+JPC_Ragdoll_SetPose(JPC_Ragdoll *in_ragdoll,
+                    const JPC_Real in_root_offset[3],
+                    const float *in_joint_matrices,
+                    bool in_lock_bodies);
+
+JPC_API void
+JPC_Ragdoll_SetLinearAndAngularVelocity(JPC_Ragdoll *in_ragdoll,
+                                        const float in_linear_velocity[3],
+                                        const float in_angular_velocity[3],
+                                        bool in_lock_bodies);
+JPC_API void
+JPC_Ragdoll_AddImpulse(JPC_Ragdoll *in_ragdoll, const float in_impulse[3], bool in_lock_bodies);
+
 JPC_API void
 JPC_Constraint_AddRef(JPC_Constraint *in_shape);
 
