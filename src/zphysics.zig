@@ -1586,16 +1586,40 @@ pub const PhysicsSystem = opaque {
     }
 
     /// NOTE: Advanced. This function is *not* protected by a lock, use with care!
+    pub fn getNumBodySlotsUnsafe(physics_system: *const PhysicsSystem) u32 {
+        return c.JPC_PhysicsSystem_GetNumBodySlotsUnsafe(@as(*const c.JPC_PhysicsSystem, @ptrCast(physics_system)));
+    }
+
+    /// NOTE: Advanced. This function is *not* protected by a lock, use with care!
+    /// The slice is indexed by `BodyId.indexBits()` and includes freed slots
+    /// (check with `isValidBodyPointer`, or use `getBody`/`tryGetBody`).
     pub fn getBodiesUnsafe(physics_system: *const PhysicsSystem) []const *const Body {
         const ptr = c.JPC_PhysicsSystem_GetBodiesUnsafe(
             @as(*c.JPC_PhysicsSystem, @ptrFromInt(@intFromPtr(physics_system))),
         );
-        return @as([*]const *const Body, @ptrCast(ptr))[0..physics_system.getNumBodies()];
+        return @as([*]const *const Body, @ptrCast(ptr))[0..physics_system.getNumBodySlotsUnsafe()];
     }
     /// NOTE: Advanced. This function is *not* protected by a lock, use with care!
     pub fn getBodiesMutUnsafe(physics_system: *PhysicsSystem) []const *Body {
         const ptr = c.JPC_PhysicsSystem_GetBodiesUnsafe(@as(*c.JPC_PhysicsSystem, @ptrCast(physics_system)));
-        return @as([*]const *Body, @ptrCast(ptr))[0..physics_system.getNumBodies()];
+        return @as([*]const *Body, @ptrCast(ptr))[0..physics_system.getNumBodySlotsUnsafe()];
+    }
+
+    /// Returns null if `body_id` is invalid, stale (body destroyed / slot reused) or out of range.
+    /// NOTE: Not protected by a lock. Only safe to call when no other thread is adding or removing bodies,
+    /// e.g. outside of `update()` on the thread that drives the simulation.
+    pub fn getBody(physics_system: *const PhysicsSystem, body_id: BodyId) ?*const Body {
+        if (body_id == .invalid) return null;
+        const all_bodies = physics_system.getBodiesUnsafe();
+        if (body_id.indexBits() >= all_bodies.len) return null;
+        return tryGetBody(all_bodies, body_id);
+    }
+    /// Mutable variant of `getBody`.
+    pub fn getBodyMut(physics_system: *PhysicsSystem, body_id: BodyId) ?*Body {
+        if (body_id == .invalid) return null;
+        const all_bodies = physics_system.getBodiesMutUnsafe();
+        if (body_id.indexBits() >= all_bodies.len) return null;
+        return tryGetBodyMut(all_bodies, body_id);
     }
 };
 //--------------------------------------------------------------------------------------------------

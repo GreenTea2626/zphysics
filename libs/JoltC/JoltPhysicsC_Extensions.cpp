@@ -42,6 +42,16 @@ JPC_PhysicsSystem_GetBodiesUnsafe(JPC_PhysicsSystem *in_physics_system)
     auto physics_system = reinterpret_cast<JPH::PhysicsSystem *>(in_physics_system);
     return reinterpret_cast<JPC_Body **>(physics_system->mBodyManager.mBodies.data());
 }
+
+//--------------------------------------------------------------------------------------------------
+JPC_API uint32_t
+JPC_PhysicsSystem_GetNumBodySlotsUnsafe(const JPC_PhysicsSystem *in_physics_system)
+{
+    assert(in_physics_system != nullptr);
+    auto physics_system = reinterpret_cast<const JPH::PhysicsSystem *>(in_physics_system);
+    return static_cast<uint32_t>(physics_system->mBodyManager.mBodies.size());
+}
+
 //--------------------------------------------------------------------------------------------------
 JPC_API void
 JPC_PhysicsSystem_GetBodyIDs(const JPC_PhysicsSystem *in_physics_system,

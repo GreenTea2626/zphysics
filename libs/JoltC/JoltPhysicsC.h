@@ -1478,6 +1478,11 @@ JPC_PhysicsSystem_GetActiveBodyIDs(const JPC_PhysicsSystem *in_physics_system,
 JPC_API JPC_Body **
 JPC_PhysicsSystem_GetBodiesUnsafe(JPC_PhysicsSystem *in_physics_system);
 
+/// Number of slots in the array returned by JPC_PhysicsSystem_GetBodiesUnsafe(), including freed slots
+/// Not protected by a lock
+JPC_API uint32_t
+JPC_PhysicsSystem_GetNumBodySlotsUnsafe(const JPC_PhysicsSystem *in_physics_system);
+
 #if JPC_DEBUG_RENDERER == 1
 JPC_API void
 JPC_PhysicsSystem_DrawBodies(JPC_PhysicsSystem *in_physics_system,
